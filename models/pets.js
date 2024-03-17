@@ -39,6 +39,22 @@ const petSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
   },
+  requests: [
+    {
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      requestType: {
+        type: String,
+        enum: ["adoption", "fostering"],
+      },
+      requestDate: {
+        type: Date,
+        default: Date.now,
+      },
+    },
+  ],
 });
 
 const Pet = mongoose.model("Pet", petSchema);

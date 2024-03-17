@@ -35,6 +35,7 @@ router.post("/", upload.single("image"), async (req, res) => {
     color,
     personality,
     description,
+    uploadedBy,
   } = req.body;
 
   try {
@@ -83,15 +84,18 @@ router.post("/", upload.single("image"), async (req, res) => {
       color,
       personality,
       description,
-      uploadedBy: "65d7974a7672f2b73beb589c",
+      uploadedBy,
       images: [s3Response.image_url],
     });
 
     const savedPet = await pet.save();
-    res.status(201).json({
-      success: true,
-      data: savedPet,
-    });
+    // await savedPet.populate({
+    //   path: "uploadedBy",
+    //   select: "username email _id",
+    // });
+
+    // console.log(savedPet);
+    res.status(201).json(savedPet);
 
     // s3.upload(params, (error, data) => {
     //   if (error) {
@@ -155,11 +159,15 @@ router.get("/:id", async (req, res) => {
       })
       .populate({
         path: "adoptionHistory",
-        populate: { path: "user", ref: "User", select: "name email" }, // Specify ref and select
+        populate: { path: "user", ref: "User", select: "username email _id" }, // Specify ref and select
       })
       .populate({
         path: "fosteringHistory",
-        populate: { path: "user", ref: "User", select: "name email" }, // Specify ref and select
+        populate: { path: "user", ref: "User", select: "username email _id" }, // Specify ref and select
+      })
+      .populate({
+        path: "requests",
+        populate: { path: "user", ref: "User", select: "username email _id" }, // Specify ref and select
       });
     if (!pet) {
       return res.status(404).json({
@@ -178,7 +186,6 @@ router.get("/:id", async (req, res) => {
 // get a list of all available pets
 router.get("/", async (req, res) => {
   try {
-    const petId = req.params.id;
     const pets = await Pet.find().populate({
       path: "uploadedBy",
       select: "username email",
@@ -189,7 +196,7 @@ router.get("/", async (req, res) => {
         message: "No pets found for the given user ID",
       });
     }
-    res.status(200).json({ data: pets, success: true });
+    res.status(200).json(pets);
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
@@ -209,8 +216,10 @@ router.put("/:id/adopt", async (req, res) => {
       return res.status(404).json({ message: "Pet not found", success: false });
     }
 
+    console.log("user id => ", userId);
     // Find the user by ID
     const user = await User.findById(userId);
+    console.log("user details => ", user);
 
     if (!user) {
       return res
@@ -226,7 +235,7 @@ router.put("/:id/adopt", async (req, res) => {
     };
     // Add the adoption record to the adoption history array
     pet.adoptionHistory.push(adoptionRecord);
-
+    pet.requests = [];
     // Update the pet's uploadedBy to the new owner
     pet.uploadedBy = userId;
 
@@ -310,7 +319,7 @@ router.get("/user/:userId", async (req, res) => {
       });
     }
 
-    res.status(200).json({ data: pets, success: true });
+    res.status(200).json(pets);
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
@@ -318,6 +327,120 @@ router.get("/user/:userId", async (req, res) => {
 });
 
 // Route to request adoption or fostering of a pet
+
+// router.post("/:id/request", async (req, res) => {
+//   try {
+//     const petId = req.params.id;
+//     const { userId, requestType } = req.body;
+
+//     // Find the pet by ID
+//     const pet = await Pet.findById(petId);
+
+//     if (!pet) {
+//       return res.status(404).json({ message: "Pet not found" });
+//     }
+
+//     // Check if the pet status is "Available"
+//     if (pet.status !== "Available") {
+//       return res
+//         .status(400)
+//         .json({ message: "Pet is not available for adoption or fostering" });
+//     }
+
+//     // Find the user by ID
+//     const user = await User.findById(userId);
+
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     // Add the user to either adoption or fostering history
+//     const historyField =
+//       requestType === "adoption" ? "adoptionHistory" : "fosteringHistory";
+
+//     // Check if the user has already adopted or fostered the pet
+//     const isAlreadyInHistory = pet[historyField].some((entry) =>
+//       entry.user.equals(userId),
+//     );
+
+//     if (isAlreadyInHistory) {
+//       return res
+//         .status(400)
+//         .json({ message: "User has already adopted or fostered this pet" });
+//     }
+
+//     // Add the user to the history array
+//     pet[historyField].push({
+//       user: userId,
+//       requestDate: new Date(),
+//     });
+
+//     // Update the pet status based on the request type
+//     pet.status = requestType === "adoption" ? "Adopted" : "Fostered";
+
+//     // Save the updated pet to the database
+//     await pet.save();
+
+//     res.status(200).json({
+//       message: `${requestType} request submitted successfully for the pet`,
+//       pet,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: "Internal Server Error" });
+//   }
+// });
+
+// router.post("/:id/request", async (req, res) => {
+//   try {
+//     const petId = req.params.id;
+//     const { userId, requestType } = req.body;
+
+//     // Find the pet by ID
+//     const pet = await Pet.findById(petId);
+
+//     if (!pet) {
+//       return res.status(404).json({ message: "Pet not found" });
+//     }
+
+//     // Check if the pet status is "Available"
+//     if (pet.status !== "Available") {
+//       return res
+//         .status(400)
+//         .json({ message: "Pet is not available for adoption or fostering" });
+//     }
+
+//     // Find the user by ID
+//     const user = await User.findById(userId);
+
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     // Initialize requests array if it doesn't exist
+//     if (!pet.requests) {
+//       pet.requests = [];
+//     }
+
+//     // Add the request to the pet's requests array
+//     pet.requests.push({
+//       user: userId,
+//       requestType,
+//       requestDate: new Date(),
+//     });
+
+//     // Save the updated pet to the database
+//     await pet.save();
+
+//     res.status(200).json({
+//       message: `${requestType} request submitted successfully for the pet`,
+//       pet,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: "Internal Server Error" });
+//   }
+// });
 
 router.post("/:id/request", async (req, res) => {
   try {
@@ -338,6 +461,17 @@ router.post("/:id/request", async (req, res) => {
         .json({ message: "Pet is not available for adoption or fostering" });
     }
 
+    // Check if the user has already applied
+    const existingRequest = pet.requests.find(
+      (request) => request.user.toString() === userId,
+    );
+
+    if (existingRequest) {
+      return res
+        .status(400)
+        .json({ message: "User has already applied for this pet" });
+    }
+
     // Find the user by ID
     const user = await User.findById(userId);
 
@@ -345,39 +479,50 @@ router.post("/:id/request", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Add the user to either adoption or fostering history
-    const historyField =
-      requestType === "adoption" ? "adoptionHistory" : "fosteringHistory";
-
-    // Check if the user has already adopted or fostered the pet
-    const isAlreadyInHistory = pet[historyField].some((entry) =>
-      entry.user.equals(userId),
-    );
-
-    if (isAlreadyInHistory) {
-      return res
-        .status(400)
-        .json({ message: "User has already adopted or fostered this pet" });
+    // Initialize requests array if it doesn't exist
+    if (!pet.requests) {
+      pet.requests = [];
     }
 
-    // Add the user to the history array
-    pet[historyField].push({
+    // Add the request to the pet's requests array
+    pet.requests.push({
       user: userId,
+      requestType,
       requestDate: new Date(),
     });
-
-    // Update the pet status based on the request type
-    pet.status = requestType === "adoption" ? "Adopted" : "Fostered";
 
     // Save the updated pet to the database
     await pet.save();
 
-    res
-      .status(200)
-      .json({
-        message: `${requestType} request submitted successfully for the pet`,
-        pet,
+    res.status(200).json({
+      message: `${requestType} request submitted successfully for the pet`,
+      pet,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+// route to get all the pets except the users
+
+router.get("/user/not/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    // Find pets excluding those uploaded by the specified user
+    const pets = await Pet.find({ uploadedBy: { $ne: userId } }).populate({
+      path: "uploadedBy",
+      select: "username email",
+    });
+
+    if (!pets || pets.length === 0) {
+      return res.status(404).json({
+        message: "No pets found uploaded by other users",
       });
+    }
+
+    res.status(200).json(pets);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal Server Error" });
