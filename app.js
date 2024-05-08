@@ -13,11 +13,27 @@ const port = process.env.PORT || 8080;
 
 dotenv.config();
 
+// console.log(process.env)
+// AWS.config.update({ region: process.env.AWS_REGION });
+
 AWS.config.update({
-  accessKeyId: process.env.ACCESS_KEY,
-  secretAccessKey: process.env.SECRET_KEY,
-  region: process.env.AWS_REGION,
+  accessKeyId: process.env.TEMP_ACCESS_KEY,
+  secretAccessKey:process.env.TEMP_SECRET_KEY,
+  region: "ap-south-1",
 });
+
+ let  s3 = new AWS.S3({ apiVersion: "2006-03-01" });
+
+// Call S3 to list the buckets
+s3.listBuckets( function (err, data) {
+  if (err) {
+    console.log("Error", err);
+  } else {
+    console.log("Success", data.Buckets);
+  }
+});
+
+
 
 mongoose.connect(process.env.MONGO_URL);
 const db = mongoose.connection;
@@ -39,3 +55,17 @@ app.use(errorMiddleware);
 app.listen(port, "0.0.0.0", () =>
   console.log(`Server is running on port: ${port}`),
 );
+
+
+// {
+// 	"Version": "2012-10-17",
+// 	"Statement": [
+// 		{
+// 			"Sid": "AllObjectActions",
+// 			"Effect": "Allow",
+// 			"Principal": "*",
+// 			"Action": "s3:*Object",
+// 			"Resource": ["arn:aws:s3:::pet-images17/*"]
+// 		}
+// 	]
+// }

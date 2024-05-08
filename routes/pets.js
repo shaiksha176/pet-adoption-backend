@@ -21,7 +21,10 @@ const storage = multer.memoryStorage(); // Use memory storage for uploading to S
 const upload = multer({ storage });
 
 const router = express.Router();
-const s3 = new AWS.S3();
+const s3 = new AWS.S3({
+  accessKeyId: process.env.ACCESS_KEY,
+  secretAccessKey: process.env.SECRET_KEY,
+})
 
 // add a new pet
 router.post("/", upload.single("image"), async (req, res) => {
@@ -55,9 +58,12 @@ router.post("/", upload.single("image"), async (req, res) => {
       // ACL: "public-read", // Adjust permissions as needed
     };
 
+    console.log("s3 params ",params)
+
     const uploadImageToS3 = new Promise((resolve, reject) => {
       s3.upload(params, (error, data) => {
         if (error) {
+          console.log(error)
           reject({
             success: false,
             message: "Error uploading to S3",
