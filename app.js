@@ -19,7 +19,7 @@ dotenv.config();
 AWS.config.update({
   accessKeyId: process.env.TEMP_ACCESS_KEY,
   secretAccessKey:process.env.TEMP_SECRET_KEY,
-  region: "ap-south-1",
+  region: process.env.AWS_REGION,
 });
 
  let  s3 = new AWS.S3({ apiVersion: "2006-03-01" });
@@ -57,15 +57,3 @@ app.listen(port, "0.0.0.0", () =>
 );
 
 
-// {
-// 	"Version": "2012-10-17",
-// 	"Statement": [
-// 		{
-// 			"Sid": "AllObjectActions",
-// 			"Effect": "Allow",
-// 			"Principal": "*",
-// 			"Action": "s3:*Object",
-// 			"Resource": ["arn:aws:s3:::pet-images17/*"]
-// 		}
-// 	]
-// }
