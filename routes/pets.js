@@ -5,18 +5,26 @@ import fs from "fs";
 import path from "path";
 import Pet from "../models/pets.js";
 import User from "../models/user.js";
-// const storage = multer.diskStorage({
-//   destination: function (req, file, cb) {
-//     cb(null, "uploads/"); // Create a folder named 'uploads' in your project directory
-//   },
-//   filename: function (req, file, cb) {
-//     cb(
-//       null,
-//       file.fieldname + "-" + Date.now() + path.extname(file.originalname),
-//     );
-//   },
-// });
-const storage = multer.memoryStorage(); // Use memory storage for uploading to S3 directly
+import cloudinary from "cloudinary";
+
+cloudinary.v2.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
+});
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/"); // Create a folder named 'uploads' in your project directory
+  },
+  filename: function (req, file, cb) {
+    cb(
+      null,
+      file.fieldname + "-" + Date.now() + path.extname(file.originalname),
+    );
+  },
+});
+// const storage = multer.memoryStorage(); // Use memory storage for uploading to S3 directly
 
 const upload = multer({ storage });
 
@@ -25,6 +33,23 @@ const s3 = new AWS.S3({
   accessKeyId: process.env.ACCESS_KEY,
   secretAccessKey: process.env.SECRET_KEY,
 })
+
+router.get("/upload", async (req, res) => {
+  try {
+    const imagePath = "uploads/image-1709072218028.jpg"; // Replace 'your-image.jpg' with the actual filename
+
+    // Upload image to Cloudinary
+    const result = await cloudinary.v2.uploader.upload(imagePath, {
+      folder: "pet-images",
+    });
+    console.log("Result ", result);
+    // Respond with the URL of the uploaded image on Cloudinary
+    res.json({ imageUrl: result.secure_url });
+  } catch (error) {
+    console.error("Error uploading image:", error);
+    res.status(500).json({ error: "Error uploading image" });
+  }
+});
 
 // add a new pet
 router.post("/", upload.single("image"), async (req, res) => {
@@ -50,36 +75,39 @@ router.post("/", upload.single("image"), async (req, res) => {
     // const fileBuffer = Buffer.from(response.data, "binary");
     // console.log("buffer file => ", fileBuffer);
 
-    const params = {
-      Bucket: process.env.BUCKET_NAME,
-      Key: `${Date.now()}-${req.file.originalname}`,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype,
-      // ACL: "public-read", // Adjust permissions as needed
-    };
+    // const params = {
+    //   Bucket: process.env.BUCKET_NAME,
+    //   Key: `${Date.now()}-${req.file.originalname}`,
+    //   Body: req.file.buffer,
+    //   ContentType: req.file.mimetype,
+    //   // ACL: "public-read", // Adjust permissions as needed
+    // };
 
-    console.log("s3 params ",params)
+    // const uploadImageToS3 = new Promise((resolve, reject) => {
+    //   s3.upload(params, (error, data) => {
+    //     if (error) {
+    //       console.log(error);
+    //       reject({
+    //         success: false,
+    //         message: "Error uploading to S3",
+    //       });
+    //     } else {
+    //       resolve({
+    //         success: true,
+    //         message: "File uploaded successfully to S3!",
+    //         image_url: data.Location,
+    //       });
+    //     }
+    //   });
+    // });
 
-    const uploadImageToS3 = new Promise((resolve, reject) => {
-      s3.upload(params, (error, data) => {
-        if (error) {
-          console.log(error)
-          reject({
-            success: false,
-            message: "Error uploading to S3",
-          });
-        } else {
-          resolve({
-            success: true,
-            message: "File uploaded successfully to S3!",
-            image_url: data.Location,
-          });
-        }
-      });
+    const imagePath = req.file.path;
+
+    // const s3Response = await uploadImageToS3;
+    const result = await cloudinary.v2.uploader.upload(imagePath, {
+      folder: "pet-images",
     });
-
-    const s3Response = await uploadImageToS3;
-
+    console.log("Result ", result);
     const pet = new Pet({
       name,
       age,
@@ -91,7 +119,8 @@ router.post("/", upload.single("image"), async (req, res) => {
       personality,
       description,
       uploadedBy,
-      images: [s3Response.image_url],
+      // images: [s3Response.image_url],
+      images: [result.secure_url],
     });
 
     const savedPet = await pet.save();
