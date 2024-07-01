@@ -13,6 +13,9 @@ cloudinary.v2.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true,
 });
+
+
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, "uploads/"); // Create a folder named 'uploads' in your project directory
@@ -20,7 +23,7 @@ const storage = multer.diskStorage({
   filename: function (req, file, cb) {
     cb(
       null,
-      file.fieldname + "-" + Date.now() + path.extname(file.originalname),
+      file.fieldname + "-" + Date.now() + path.extname(file.originalname)
     );
   },
 });
@@ -32,7 +35,7 @@ const router = express.Router();
 const s3 = new AWS.S3({
   accessKeyId: process.env.ACCESS_KEY,
   secretAccessKey: process.env.SECRET_KEY,
-})
+});
 
 router.get("/upload", async (req, res) => {
   try {
@@ -165,7 +168,7 @@ router.put("/:id", async (req, res) => {
     const updatedPet = await Pet.findByIdAndUpdate(
       petId,
       { $set: updateData },
-      { new: true }, // Return the updated pet
+      { new: true } // Return the updated pet
     );
 
     if (!updatedPet) {
@@ -235,6 +238,59 @@ router.get("/", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+// Route to get pets by category
+router.get("/category/:name", async (req, res) => {
+  try {
+    const { name } = req.params;
+    if (!["Cat", "Dog", "Other"].includes(name)) {
+      return res.status(400).json({ error: "Invalid category" });
+    }
+
+    const pets = await Pet.find({ category: name });
+    res.status(200).json(pets);
+  } catch (error) {
+    console.error("Error fetching pets by category:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Route to get pets based on the status
+router.get("/status/:status", async (req, res) => {
+  try {
+    const { status } = req.params;
+    if (!["Available", "Adopted", "Fostered", "Uploaded"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    const pets = await Pet.find({ status: status }).populate({
+      path: "uploadedBy",
+      select: "username email phoneNumber address", // Select the fields you want to retrieve from the uploadedBy user
+    });
+    res.json(pets);
+  } catch (error) {
+    console.error("Error fetching pets by status:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Route to get pets by category and available status
+router.get("/category/:category/available", async (req, res) => {
+  try {
+    const { category } = req.params;
+    if (!["Cat", "Dog", "Other"].includes(category)) {
+      return res.status(400).json({ error: "Invalid category" });
+    }
+    const pets = await Pet.find({ category: category, status: "Available" });
+    res.json(pets);
+  } catch (error) {
+    console.error(
+      "Error fetching pets by category and available status:",
+      error
+    );
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -342,11 +398,20 @@ router.put("/:id/foster", async (req, res) => {
 router.get("/user/:userId", async (req, res) => {
   try {
     const userId = req.params.userId;
-    const pets = await Pet.find({ uploadedBy: userId }).populate({
-      path: "uploadedBy",
-      select: "username email", // Specify the fields you want to retrieve from the User model
-    });
+    // const pets = await Pet.find({ uploadedBy: userId }).populate({
+    //   path: "uploadedBy",
+    //   select: "username email", // Specify the fields you want to retrieve from the User model
+    // });
 
+    const pets = await Pet.find({ uploadedBy: userId })
+      .populate({
+        path: "uploadedBy",
+        select: "username email phoneNumber address", // Select the fields you want to retrieve from the uploadedBy user
+      })
+      .populate({
+        path: "requests.user",
+        select: "username email phoneNumber address", // Select the fields you want to retrieve from the users in requests
+      });
     if (!pets || pets.length === 0) {
       return res.status(404).json({
         success: true,
@@ -482,6 +547,8 @@ router.post("/:id/request", async (req, res) => {
     const petId = req.params.id;
     const { userId, requestType } = req.body;
 
+    console.log("request details ", req.body);
+
     // Find the pet by ID
     const pet = await Pet.findById(petId);
 
@@ -498,7 +565,7 @@ router.post("/:id/request", async (req, res) => {
 
     // Check if the user has already applied
     const existingRequest = pet.requests.find(
-      (request) => request.user.toString() === userId,
+      (request) => request.user.toString() === userId
     );
 
     if (existingRequest) {
@@ -561,6 +628,35 @@ router.get("/user/not/:userId", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+router.delete("/:petId/requests/:requestId", async (req, res) => {
+  const { petId, requestId } = req.params;
+
+  try {
+    const pet = await Pet.findById(petId);
+
+    if (!pet) {
+      return res.status(404).send({ message: "Pet not found" });
+    }
+
+    const requestIndex = pet.requests.findIndex(
+      (request) => request._id.toString() === requestId
+    );
+
+    if (requestIndex === -1) {
+      return res.status(404).send({ message: "Request not found" });
+    }
+
+    // Remove the request from the array
+    pet.requests.splice(requestIndex, 1);
+    await pet.save();
+
+    res.status(200).send({ message: "Request declined successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "Server error" });
   }
 });
 

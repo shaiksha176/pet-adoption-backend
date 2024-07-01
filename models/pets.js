@@ -19,10 +19,16 @@ const fosteringSchema = new mongoose.Schema({
 
 const petSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  category: String,
+  category: {
+    type: String,
+    enum: ["Cat", "Dog", "Other"],
+  },
   images: [String],
   age: Number,
-  gender: String,
+  gender: {
+    type: String,
+    enum: ["Male", "Female"],
+  },
   breed: String,
   size: String,
   color: String,

@@ -59,7 +59,7 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign(
       { id: user._id, username: user.username, email: user.email },
       "your-secret-key",
-      { expiresIn: "7d" },
+      { expiresIn: "7d" }
     );
 
     res.status(200).json({
@@ -88,9 +88,23 @@ router.delete("/", (req, res) => {
 });
 
 // update user account
-router.put("/:id", (req, res) => {
+router.put("/:id", async (req, res) => {
   // TODO: Add logic to update user account by ID
   // This code can not only be used to update user details, but also the adoption and fostering details when adopting/fostering a pet
+  const userId = req.params.id;
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).send({ message: "User not found" });
+    }
+
+    user.username = req.body.username;
+    await user.save();
+    res.send(user);
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
 });
 
 // fetch user details
